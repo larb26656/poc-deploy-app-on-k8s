@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-service
+  namespace: poc-deploy-app-on-k8s
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: catalog-service
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+    spec:
+      containers:
+        - name: catalog-service
+          image: errortime/catalog-service:0.0.1
+          ports:
+            - containerPort: 43117
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_HOST
+              value: postgres
+            - name: DATABASE_PORT
+              value: "15432"
+            - name: DB_SYNCHRONIZE
+              value: "true"
+            - name: AVAILABILITY_SERVICE_BASE_URL
+              value: http://availability-service:43118
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DATABASE_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DATABASE_PASSWORD
+            - name: DATABASE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: DATABASE_NAME
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 43117
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 43117
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  namespace: poc-deploy-app-on-k8s
+spec:
+  type: ClusterIP
+  selector:
+    app: catalog-service
+  ports:
+    - name: http
+      port: 43117
+      targetPort: 43117
