@@ -1,0 +1,67 @@
+name: catalog-platform
+
+services:
+  catalog-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-catalog_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-catalog_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-catalog_db}
+    ports:
+      - "${POSTGRES_PORT:-45432}:5432"
+    volumes:
+      - catalog_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-catalog_app} -d ${POSTGRES_DB:-catalog_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  availability-service:
+    build:
+      context: .
+      dockerfile: apps/availability-service/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: ${AVAILABILITY_PORT:-43118}
+    ports:
+      - "${AVAILABILITY_PORT:-43118}:${AVAILABILITY_PORT:-43118}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||43118)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: apps/catalog-service/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: ${CATALOG_PORT:-43117}
+      DATABASE_HOST: catalog-postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER:-catalog_app}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-catalog_secret}
+      DATABASE_NAME: ${POSTGRES_DB:-catalog_db}
+      DB_SYNCHRONIZE: "true"
+      AVAILABILITY_SERVICE_BASE_URL: http://availability-service:${AVAILABILITY_PORT:-43118}
+    ports:
+      - "${CATALOG_PORT:-43117}:${CATALOG_PORT:-43117}"
+    depends_on:
+      catalog-postgres:
+        condition: service_healthy
+      availability-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||43117)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  catalog_pgdata:

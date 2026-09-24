@@ -1,0 +1,22 @@
+{
+  "name": "catalog-platform",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:catalog": "pnpm --filter catalog-service... build",
+    "build:availability": "pnpm --filter availability-service... build",
+    "dev:catalog": "pnpm --filter catalog-service start:dev",
+    "dev:availability": "pnpm --filter availability-service start:dev",
+    "up": "docker compose up --build -d",
+    "logs": "docker compose logs -f",
+    "down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}
