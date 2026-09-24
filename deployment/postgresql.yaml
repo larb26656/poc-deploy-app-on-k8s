@@ -1,9 +1,11 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: poc-deploy-app-on-k8s
 spec:
+  serviceName: postgres
+  replicas: 1
   selector:
     matchLabels:
       app: postgres
@@ -17,6 +19,7 @@ spec:
           image: postgres:17-alpine
           ports:
             - containerPort: 5432
+              name: tcp
           env:
             - name: POSTGRES_USER
               valueFrom:
@@ -33,6 +36,8 @@ spec:
                 configMapKeyRef:
                   name: app-config
                   key: DATABASE_NAME
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           livenessProbe:
             exec:
               command:
@@ -59,6 +64,19 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Mi
 ---
 apiVersion: v1
 kind: Service
