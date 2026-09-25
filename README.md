@@ -89,6 +89,7 @@ which routes by path prefix:
 | --------------- | --------------------------- | --------------------------------- |
 | `/catalog`      | `catalog-service:43117`     | yes                               |
 | `/availability` | `availability-service:43118`| yes                               |
+| `/external`     | `https://jsonplaceholder.typicode.com` (ExternalName Service) | yes |
 
 ### 1. Build images (skip if pulling from Docker Hub)
 
@@ -160,6 +161,7 @@ curl http://localhost:8080/catalog/api/v1/catalog/items
 curl http://localhost:8080/catalog/api/v1/catalog/availability
 curl http://localhost:8080/availability/health
 curl http://localhost:8080/availability/api/v1/internal/availability
+curl http://localhost:8080/external/posts
 ```
 
 Stop the tunnel with `Ctrl+C`.

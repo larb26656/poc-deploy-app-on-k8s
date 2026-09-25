@@ -25,6 +25,11 @@ traefik:
     enabled: true
     isDefaultClass: true
 
+  # Required to route to Services of type ExternalName (e.g. jsonplaceholder)
+  providers:
+    kubernetesCRD:
+      allowExternalNameServices: true
+
   service:
     type: LoadBalancer
 

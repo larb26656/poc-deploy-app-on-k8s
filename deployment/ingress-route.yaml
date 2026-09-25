@@ -5,6 +5,7 @@
 # Routes (prefix is stripped before forwarding):
 #   /catalog/xxx       -> catalog-service:43117       (/xxx)
 #   /availability/xxx  -> availability-service:43118  (/xxx)
+#   /external/xxx      -> https://jsonplaceholder.typicode.com/xxx
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -24,6 +25,30 @@ spec:
   stripPrefix:
     prefixes:
       - /availability
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-external-prefix
+  namespace: poc-deploy-app-on-k8s
+spec:
+  stripPrefix:
+    prefixes:
+      - /external
+---
+# External target reached through a Service of type ExternalName.
+# Requires `providers.kubernetesCRD.allowExternalNameServices=true` in Traefik.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jsonplaceholder
+  namespace: poc-deploy-app-on-k8s
+spec:
+  type: ExternalName
+  externalName: jsonplaceholder.typicode.com
+  ports:
+    - name: https
+      port: 443
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -48,3 +73,14 @@ spec:
       services:
         - name: availability-service
           port: 43118
+    - match: PathPrefix(`/external`)
+      kind: Rule
+      middlewares:
+        - name: strip-external-prefix
+      services:
+        - name: jsonplaceholder
+          port: 443
+          scheme: https
+          # Use the backend host as Host header (jsonplaceholder.typicode.com)
+          # instead of forwarding the client's Host, which Cloudflare rejects with 403
+          passHostHeader: false
