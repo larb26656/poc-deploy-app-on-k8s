@@ -1,0 +1,50 @@
+# Traefik IngressRoute (CRD)
+# Apply after traefik is installed:
+#   kubectl apply -f deployment/ingress-route.yaml
+#
+# Routes (prefix is stripped before forwarding):
+#   /catalog/xxx       -> catalog-service:43117       (/xxx)
+#   /availability/xxx  -> availability-service:43118  (/xxx)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-catalog-prefix
+  namespace: poc-deploy-app-on-k8s
+spec:
+  stripPrefix:
+    prefixes:
+      - /catalog
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-availability-prefix
+  namespace: poc-deploy-app-on-k8s
+spec:
+  stripPrefix:
+    prefixes:
+      - /availability
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: app-ingress-route
+  namespace: poc-deploy-app-on-k8s
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/catalog`)
+      kind: Rule
+      middlewares:
+        - name: strip-catalog-prefix
+      services:
+        - name: catalog-service
+          port: 43117
+    - match: PathPrefix(`/availability`)
+      kind: Rule
+      middlewares:
+        - name: strip-availability-prefix
+      services:
+        - name: availability-service
+          port: 43118

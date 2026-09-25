@@ -14,7 +14,11 @@
     "dev:availability": "pnpm --filter availability-service start:dev",
     "up": "docker compose up --build -d",
     "logs": "docker compose logs -f",
-    "down": "docker compose down"
+    "down": "docker compose down",
+    "k8s:apply": "kubectl apply -f deployment/",
+    "k8s:delete": "kubectl delete -f deployment/",
+    "k8s:all": "pnpm deploy:traefik && pnpm k8s:apply",
+    "deploy:traefik": "helm dependency build deployment/traefik && helm upgrade --install traefik deployment/traefik -n traefik-system --create-namespace"
   },
   "devDependencies": {
     "@types/node": "^24.0.0"

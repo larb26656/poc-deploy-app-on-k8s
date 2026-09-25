@@ -1,0 +1,52 @@
+# Traefik settings (nested under `traefik:` because it's a subchart)
+#
+# Install:
+#   helm dependency build deployment/traefik   # generates Chart.lock + charts/
+#   helm upgrade --install traefik deployment/traefik \
+#     -n traefik-system --create-namespace
+#
+# Upgrade to a new pinned version:
+#   1. edit `dependencies[].version` in deployment/traefik/Chart.yaml
+#   2. helm dependency update deployment/traefik
+#   3. helm upgrade traefik deployment/traefik -n traefik-system
+#
+# Access (minikube): run `minikube tunnel` in another terminal, then
+#   curl http://localhost:8080/catalog/health
+#   curl http://localhost:8080/availability/health
+#
+# Uninstall:
+#   helm uninstall traefik -n traefik-system
+
+traefik:
+  deployment:
+    replicas: 1
+
+  ingressClass:
+    enabled: true
+    isDefaultClass: true
+
+  service:
+    type: LoadBalancer
+
+  # Dashboard: port-forward only, not exposed publicly
+  #   kubectl port-forward -n traefik-system svc/traefik 9000:9000
+  #   open http://localhost:9000/dashboard/
+  ingressRoute:
+    dashboard:
+      enabled: false
+
+  ports:
+    web:
+      port: 80
+      exposedPort: 8080
+    websecure:
+      port: 8443
+      exposedPort: 8443
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

@@ -81,7 +81,14 @@ pnpm dev:catalog        # terminal 2
 ## Deploy on Kubernetes (minikube)
 
 Manifests live in `deployment/` — the namespace is `poc-deploy-app-on-k8s`.
-All Services are `ClusterIP`, so `kubectl port-forward` is required to reach them from your machine.
+All app Services are `ClusterIP`; traffic enters through **Traefik**
+(installed via Helm into `traefik-system`, exposed as `LoadBalancer` on port **8080**)
+which routes by path prefix:
+
+| Prefix          | Target service              | Prefix stripped before forwarding |
+| --------------- | --------------------------- | --------------------------------- |
+| `/catalog`      | `catalog-service:43117`     | yes                               |
+| `/availability` | `availability-service:43118`| yes                               |
 
 ### 1. Build images (skip if pulling from Docker Hub)
 
@@ -94,27 +101,37 @@ docker build -f apps/catalog-service/Dockerfile -t errortime/catalog-service:0.0
 docker build -f apps/availability-service/Dockerfile -t errortime/availability-service:0.0.1 .
 ```
 
-### 2. Apply manifests (in order)
+### 2. Install Traefik (before the app manifests — they contain the IngressRoute CRD)
 
 ```bash
-kubectl apply -f deployment/namespace.yaml
+helm dependency build deployment/traefik
+helm upgrade --install traefik deployment/traefik -n traefik-system --create-namespace
+```
+
+### 3. Apply manifests (in order)
+
+```bash
+kubectl apply -f deployment/00-namespace.yaml
 kubectl apply -f deployment/secret-map.yaml
 kubectl apply -f deployment/config-map.yaml
 kubectl apply -f deployment/postgresql.yaml
 kubectl apply -f deployment/availability-service.yaml
 kubectl apply -f deployment/catalog-service.yaml
+kubectl apply -f deployment/ingress-route.yaml
 ```
 
-Or apply everything at once (the folder is processed in filename order):
+Or apply everything at once (the folder is processed in filename order;
+Traefik must already be installed because of `ingress-route.yaml`):
 
 ```bash
 kubectl apply -f deployment/
 ```
 
-### 3. Verify
+### 4. Verify
 
 ```bash
 kubectl get pods,svc -n poc-deploy-app-on-k8s
+kubectl get pods,svc -n traefik-system
 ```
 
 Wait until pods are `Running` and `READY x/x`:
@@ -125,36 +142,40 @@ pod/catalog-service-xxx        2/2   Running
 pod/postgres-xxx               1/1   Running
 ```
 
-### 4. Forward ports from your machine into the cluster
+### 5. Reach the app through Traefik
+
+`minikube tunnel` makes the Traefik `LoadBalancer` reachable at `localhost`
+(it occupies one terminal — keep it running):
+
+```bash
+minikube tunnel
+```
+
+Then curl the endpoints through Traefik (note the `/catalog` and `/availability`
+prefixes, which are routed and stripped by Traefik):
+
+```bash
+curl http://localhost:8080/catalog/health
+curl http://localhost:8080/catalog/api/v1/catalog/items
+curl http://localhost:8080/catalog/api/v1/catalog/availability
+curl http://localhost:8080/availability/health
+curl http://localhost:8080/availability/api/v1/internal/availability
+```
+
+Stop the tunnel with `Ctrl+C`.
+
+Bypassing Traefik for debugging is still possible via port-forward:
 
 ```bash
 kubectl port-forward -n poc-deploy-app-on-k8s svc/catalog-service 43117:43117
-kubectl port-forward -n poc-deploy-app-on-k8s svc/availability-service 43118:43118
 ```
 
-Each command occupies one terminal (or run them in the background):
-
-```bash
-kubectl port-forward -n poc-deploy-app-on-k8s svc/catalog-service 43117:43117 &
-kubectl port-forward -n poc-deploy-app-on-k8s svc/availability-service 43118:43118 &
-```
-
-Then curl the same endpoints as with Docker:
-
-```bash
-curl http://localhost:43117/health
-curl http://localhost:43117/api/v1/catalog/items
-curl http://localhost:43117/api/v1/catalog/availability
-curl http://localhost:43118/health
-curl http://localhost:43118/api/v1/internal/availability
-```
-
-Stop port-forwarding with `Ctrl+C` (or `kill %1 %2` when running in the background).
-
-### 5. Clean up
+### 6. Clean up
 
 ```bash
 kubectl delete namespace poc-deploy-app-on-k8s
+helm uninstall traefik -n traefik-system
+kubectl delete namespace traefik-system
 ```
 
 ## HTTP Request Logging
@@ -181,6 +202,8 @@ apps/
     Dockerfile             # multi-stage build for availability-service (port 43118)
 docker-compose.yml         # 2 services + postgres
 deployment/                # k8s manifests (namespace, secret, configmap, postgres, 2 services)
+deployment/ingress-route.yaml   # Traefik IngressRoute (/catalog, /availability)
+deployment/traefik/        # wrapper Helm chart pinning Traefik (LoadBalancer :8080)
 ```
 
 ## Deployment notes

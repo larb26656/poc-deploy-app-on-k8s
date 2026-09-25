@@ -4,3 +4,6 @@ dist/
 .env
 coverage/
 .DS_Store
+
+# Helm dependency charts (regenerable via `helm dependency build`)
+deployment/traefik/charts/
